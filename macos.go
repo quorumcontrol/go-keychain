@@ -180,12 +180,17 @@ func NewWithPath(path string) Keychain {
 
 // Status returns the status of the keychain
 func (kc Keychain) Status() error {
-	// returns no error even if it doesn't exist
-	kref, err := openKeychainRef(kc.path)
-	if err != nil {
-		return err
+	var kref C.SecKeychainRef
+	var err error
+
+	if kc.path != "" {
+		// returns no error even if it doesn't exist
+		kref, err = openKeychainRef(kc.path)
+		if err != nil {
+			return err
+		}
+		defer C.CFRelease(C.CFTypeRef(kref))
 	}
-	defer C.CFRelease(C.CFTypeRef(kref))
 
 	var status C.SecKeychainStatus
 	return checkError(C.SecKeychainGetStatus(kref, &status))
@@ -216,6 +221,14 @@ func UnlockAtPath(path string, password string) error {
 	return checkError(C.SecKeychainUnlock(kref, C.UInt32(len(password)), unsafe.Pointer(passwordRef), C.Boolean(1)))
 }
 
+// UnlockDefault unlocks the default keychain
+func UnlockDefault(password string) error {
+	passwordRef := C.CString(password)
+	defer C.free(unsafe.Pointer(passwordRef))
+	var nilRef C.SecKeychainRef
+	return checkError(C.SecKeychainUnlock(nilRef, C.UInt32(len(password)), unsafe.Pointer(passwordRef), C.Boolean(1)))
+}
+
 // LockAtPath locks keychain at path
 func LockAtPath(path string) error {
 	kref, err := openKeychainRef(path)
@@ -224,6 +237,12 @@ func LockAtPath(path string) error {
 		return err
 	}
 	return checkError(C.SecKeychainLock(kref))
+}
+
+// LockDefault locks the default keychain
+func LockDefault() error {
+	var nilRef C.SecKeychainRef
+	return checkError(C.SecKeychainLock(nilRef))
 }
 
 // Delete the Keychain
